@@ -37,7 +37,12 @@
 #define AprsPinInput  pinMode(12,INPUT);pinMode(13,INPUT);pinMode(14,INPUT);pinMode(15,INPUT)
 #define AprsPinOutput pinMode(12,OUTPUT);pinMode(13,OUTPUT);pinMode(14,OUTPUT);pinMode(15,OUTPUT)
 
-#define DEVMODE // Development mode. Uncomment to enable for debugging.
+// Development mode. Uncomment to enable for debugging.
+#define DEVMODE
+
+// Set to 1 for APRS send, set to 0 for no callsign or antenna, good for board health.
+#define RFENABLE 0
+
 
 //******************************  APRS CONFIG **********************************
 char    CallSign[7]="NOCALL"; //DO NOT FORGET TO CHANGE YOUR CALLSIGN
@@ -555,17 +560,17 @@ void sendLocation() {
   sprintf(timestamp_buff + 4, "%02d", gps.time.isValid() ? (int)gps.time.second() : 0);
   timestamp_buff[6] = 'h';
   AprsPinOutput;
-  RfON;
+  if (RFENABLE) RfON;
   delay(2000);
-  RfPttON;
+  if (RFENABLE) RfPttON;
   delay(1000);
   
-  APRS_sendLocWtTmStmp(telemetry_buff, strlen(telemetry_buff), timestamp_buff);
+  if (RFENABLE) APRS_sendLocWtTmStmp(telemetry_buff, strlen(telemetry_buff), timestamp_buff);
   delay(50);
   while (digitalRead(1)) {;} //LibAprs TX Led pin PB1
   delay(50);
-  RfPttOFF;
-  RfOFF;
+  if (RFENABLE) RfPttOFF;
+  if (RFENABLE) RfOFF;
   AprsPinInput;
 #if defined(DEVMODE)
   Serial.println(F("Location sent with comment"));
@@ -578,20 +583,20 @@ void sendStatus() {
   if ((readBatt() > DraHighVolt) && (readBatt() < 10)) RfPwrHigh; //DRA Power 1 Watt
   else RfPwrLow; //DRA Power 0.5 Watt
   AprsPinOutput;
-  RfON;
+  if (RFENABLE) RfON;
   delay(2000);
-  RfPttON;
+  if (RFENABLE) RfPttON;
   delay(1000);
 
 
-  APRS_sendStatus(StatusMessage, strlen(StatusMessage));
+  if (RFENABLE) APRS_sendStatus(StatusMessage, strlen(StatusMessage));
 
   
   delay(50);
   while (digitalRead(1)) {;} //LibAprs TX Led pin PB1
   delay(50);
-  RfPttOFF;
-  RfOFF;
+  if (RFENABLE) RfPttOFF;
+  if (RFENABLE) RfOFF;
   AprsPinInput;
 #if defined(DEVMODE)
   Serial.println(F("Status sent"));
