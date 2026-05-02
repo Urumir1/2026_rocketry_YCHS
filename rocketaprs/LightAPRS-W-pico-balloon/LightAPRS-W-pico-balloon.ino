@@ -68,6 +68,9 @@ char hf_call[7] = "NOCALL"; //DO NOT FORGET TO CHANGE YOUR CALLSIGN
 //#define WSPR_DEFAULT_FREQ       28126100UL //10m band
 //for all bands -> http://wsprnet.org/drupal/node/7352
 
+//Set to zero to disable WSPR
+#define SENDWSPR 0
+
 
 // Supported modes, default HF mode is WSPR
 enum mode {MODE_JT9, MODE_JT65, MODE_JT4, MODE_WSPR, MODE_FSQ_2, MODE_FSQ_3,
@@ -257,7 +260,7 @@ void loop() {
 #endif        
 
         // preparations for HF starts one minute before TX time at minute 3, 7, 13, 17, 23, 27, 33, 37, 43, 47, 53 or 57. No APRS TX during this period...
-        if (readBatt() > WsprBattMin && timeStatus() == timeSet && ((minute() % 10 == 3) || (minute() % 10 == 7)) ) { 
+        if (SENDWSPR && readBatt() > WsprBattMin && timeStatus() == timeSet && ((minute() % 10 == 3) || (minute() % 10 == 7)) ) {
           GridLocator(hf_loc, gps.location.lat(), gps.location.lng());
           sprintf(hf_message,"%s %s",hf_call,hf_loc);
           
