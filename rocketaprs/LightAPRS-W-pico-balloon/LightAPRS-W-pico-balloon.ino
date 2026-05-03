@@ -417,9 +417,10 @@ void configureFreqbyLocation() {
 
 byte configDra818(char *freq)
 {
+  if (!RFENABLE) return 0;
   SoftwareSerial Serial_dra(PIN_DRA_RX, PIN_DRA_TX);
   Serial_dra.begin(9600);
-  RfON;
+  if (RFENABLE) RfON;
   char ack[3];
   int n;
   delay(2000);
