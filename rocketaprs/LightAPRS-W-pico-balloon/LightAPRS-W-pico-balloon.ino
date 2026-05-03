@@ -203,19 +203,54 @@ void setup() {
 #endif
 
   APRS_init(ADC_REFERENCE, OPEN_SQUELCH);
+#if defined(DEVMODE)
+  Serial.println(F("After APRS_init"));
+#endif
   APRS_setCallsign(CallSign,CallNumber);
+#if defined(DEVMODE)
+  Serial.println(F("After APRS_setCallsign"));
+#endif
   APRS_setDestination("APLIGA", 0);
+#if defined(DEVMODE)
+  Serial.println(F("after APRS_setDestination"));
+#endif
   APRS_setMessageDestination("APLIGA", 0);
+#if defined(DEVMODE)
+  Serial.println(F("after APRS_setMessageDestination"));
+#endif
   APRS_setPath1("WIDE1", Wide1);
+#if defined(DEVMODE)
+  Serial.println(F("after APRS_setPath1"));
+#endif
   APRS_setPath2("WIDE2", Wide2);
-  APRS_useAlternateSymbolTable(alternateSymbolTable); 
+#if defined(DEVMODE)
+  Serial.println(F("after APRS_setPath2"));
+#endif
+  APRS_useAlternateSymbolTable(alternateSymbolTable);
+#if defined(DEVMODE)
+  Serial.println(F("APRS_useAlternateSymbolTable"));
+#endif
   APRS_setSymbol(Symbol);
+#if defined(DEVMODE)
+  Serial.println(F("APRS_setSymbol"));
+#endif
   //increase following value (for example to 500UL) if you experience packet loss/decode issues.   
   APRS_setPreamble(350UL);
+#if defined(DEVMODE)
+  Serial.println(F("APRS_setPreamble"));
+#endif
   APRS_setPathSize(pathSize);
+#if defined(DEVMODE)
+  Serial.println(F("APRS_setPathSize"));
+#endif
   AprsPinInput;
+#if defined(DEVMODE)
+  Serial.println(F("AprsPinInput"));
+#endif
   bmp.begin();
-
+#if defined(DEVMODE)
+  Serial.println(F("bmp.begin"));
+#endif
 }
 
 void loop() {
@@ -266,6 +301,9 @@ void loop() {
 
         // preparations for HF starts one minute before TX time at minute 3, 7, 13, 17, 23, 27, 33, 37, 43, 47, 53 or 57. No APRS TX during this period...
         if (SENDWSPR && readBatt() > WsprBattMin && timeStatus() == timeSet && ((minute() % 10 == 3) || (minute() % 10 == 7)) ) {
+#if defined(DEVMODE)
+          Serial.println(F("VERY VERY QUIET I.E. Impossible WSPR"));
+#endif
           GridLocator(hf_loc, gps.location.lat(), gps.location.lng());
           sprintf(hf_message,"%s %s",hf_call,hf_loc);
           
@@ -280,17 +318,20 @@ void loop() {
           }
 #if defined(DEVMODE)
           Serial.println(F("Digital HF Mode Sending"));
-#endif          
+#endif
           encode();
 
           HFSent = true;
 #if defined(DEVMODE)
           Serial.println(F("Digital HF Mode Sent"));
-#endif               
+#endif
  
         } else {
-          
+#if defined(DEVMODE)
+          Serial.println(F("Before updateTelemetry"));
+#endif
           updateTelemetry();
+
           //APRS frequency isn't the same for the whole world. (for pico balloon only)
           if (!radioSetup || TxCount == 200) {
             configureFreqbyLocation();
@@ -430,15 +471,27 @@ byte configDra818(char *freq)
 #endif
   sprintf(cmd, "AT+DMOSETGROUP=0,%s,%s,0000,4,0000", freq, freq);
   Serial_dra.println(cmd);
+#if defined(DEVMODE)
+      Serial.println(F("DRA cmd sent"));
+#endif
   ack[2] = 0;
   while (ack[2] != 0xa)
   {
+#if defined(DEVMODE)
+      Serial.println(F("DRA wait for response"));
+#endif
     if (Serial_dra.available() > 0) {
+#if defined(DEVMODE)
+      Serial.println(F("DRA responded confirm"));
+#endif
       ack[0] = ack[1];
       ack[1] = ack[2];
       ack[2] = Serial_dra.read();
     }
   }
+#if defined(DEVMODE)
+      Serial.println(F("DRA after Response while"));
+#endif
   Serial_dra.end();
   RfOFF;
   pinMode(PIN_DRA_TX, INPUT);
