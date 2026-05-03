@@ -37,6 +37,7 @@
 #define AprsPinInput  pinMode(12,INPUT);pinMode(13,INPUT);pinMode(14,INPUT);pinMode(15,INPUT)
 #define AprsPinOutput pinMode(12,OUTPUT);pinMode(13,OUTPUT);pinMode(14,OUTPUT);pinMode(15,OUTPUT)
 
+#define TEENCADDR 0x26
 // Development mode. Uncomment to enable for debugging.
 #define DEVMODE
 
@@ -189,6 +190,9 @@ void setup() {
   pinMode(PIN_DRA_TX, INPUT);
   pinMode(SiVccPin, OUTPUT);
 
+  Wire.begin();
+
+
   RfOFF;
   GpsOFF;
   RfPwrLow;
@@ -218,9 +222,24 @@ void setup() {
 
 }
 
+
+// TODO doc protocol
+void doTeenCComms() {
+  char msgTx[10], msgRx[10];
+  sprintf(msgTx, "GPS:%u", GpsFirstFix);//Gps Status
+
+  Wire.beginTransmission(TEENCADDR);
+  Wire.write(msgTx);//Gps Status send
+  Wire.endTransmission();
+
+}
+
+
+
+
 void loop() {
   wdt_reset();
-
+  doTeenCComms();
   if (readBatt() > BattMin) {
     if (aliveStatus) {
 	#if defined(DEVMODE)
