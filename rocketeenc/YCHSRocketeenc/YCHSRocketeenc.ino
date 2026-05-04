@@ -42,6 +42,7 @@ enum i2cReq {
 char i2cData[33]; //HW buffer of 32B, +1 for NULL since the protocol is string-based
 enum i2cReq i2cReqType = NOTREQ;
 volatile bool i2cNewData = false;
+volatile bool requestTest = false;
 
 
 bool gpsFixed = false;
@@ -80,6 +81,10 @@ void updateLaunchDetect() {
   }
   if ((zAxis >= LAUNCHZTHRESH) && (++launchZAboveThresh >= LAUNCHCOUNTTHRESH)) {
     launchDetect = true;
+    if (DEVMODE) {
+      Serial.printf("!!!LAUNCH DETECETED!!!\n");
+      tone(BUZZPIN, 200, 500);
+    }
   }
 }
 
@@ -91,6 +96,13 @@ void gpsFixBeep() {
   tone(BUZZPIN, GPSFIXTONE, 200);
   delay(500);
   tone(BUZZPIN, GPSFIXTONE, 200);
+}
+
+void testBeep() {
+  requestTest = false;
+  if (!DEVMODE) return;
+  tone(BUZZPIN, GPSFIXTONE*2, 1000);
+  delay(1000);
 }
 
 void receiveI2C(int count) {
@@ -107,6 +119,7 @@ void requestI2C() {
   switch (i2cReqType) {
     case TEST: //Test request, only valid response is 0xF
       Wire.write(0xF);
+      requestTest = true;
       break;
     case XMIT_RDY: //Asking if we're ready for transmission - once we've launched
       Wire.write((char)launchDetect);
@@ -168,6 +181,7 @@ void loop() {
 
   if (!launchDetect) updateLaunchDetect();
   if (i2cNewData) i2cProcessData();
+  if (DEVMODE && requestTest) testBeep();
 
   delay(LOOPDELAY);
 }

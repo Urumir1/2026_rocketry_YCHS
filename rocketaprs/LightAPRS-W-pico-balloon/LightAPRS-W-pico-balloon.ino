@@ -61,6 +61,7 @@ enum i2cReq {
 #define XMITREADYDELAY (unsigned long)15000UL //Delay for 15s after Xmit Ready (launch) to have first send near apogee
 bool xmitReady = false;
 bool xmitReadyStart = false;
+bool xmitReadyTest = false;
 unsigned long xmitReadyStartms = 0UL;
 
 
@@ -318,6 +319,19 @@ bool i2cGetXmitReady(char *buf) {
   return (bool)i2cReceiveUByte();
 }
 
+#ifdef DEVMODE
+unsigned char i2cGetTest(char *buf) {
+#if defined(DEVMODE)
+    Serial.print(__func__);
+    Serial.printf(": Sending Test request\n");
+#endif
+  i2cBuildMessage(buf, REQ, TEST);
+  i2cSendMessage(buf);
+  delay(100);
+  return (bool)i2cReceiveUByte();
+}
+#endif
+
 // TODO doc protocol
 void doTeenCComms() {
   char msgTx[33];
@@ -325,6 +339,15 @@ void doTeenCComms() {
   i2cSendGPS(&msgTx[0]);
 
   if (!xmitReadyStart) xmitReadyStart = i2cGetXmitReady(&msgTx[0]);
+#ifdef DEVMODE
+  if (xmitReady && !xmitReadyTest) {
+    xmitReadyTest = true; //Only once, when we have launch detected, GPS lock, and 15 second delay
+    unsigned char testResult = 0xFF;
+    i2cGetTest(&msgTx[0]);
+    Serial.print(__func__);
+    Serial.printf(": Received TEST response from Teensy: %02x\n", testResult);
+  }
+#endif
 
   //We don't want to immediately start xmit after launch, wait for a period of time (15s)
   if (!xmitReady && xmitReadyStart) {
