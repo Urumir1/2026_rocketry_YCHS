@@ -6,13 +6,19 @@
 
 #define GPSFIXTONE 2048
 
-int ZACCELPIN = A6;
+#define LOOPDELAY 100 // Loop delay in ms
 
-int zAxis = 0;
-int yAxis = 0;
-int xAxis = 0;
+#define LAUNCHZTHRESH 745 // Approx 2.5g - max detect is 3g
+#define LAUNCHTIMETHRESH 500 //Amount of time in ms above Z threshold before we decide we're launched
+#define LAUNCHCOUNTTHRESH (int)(LAUNCHTIMETHRESH/LOOPDELAY) //Threshold Count = time threshold over loop delay time
 
-bool launchDetect = false;
+#define XACCELPIN A6
+#define YACCELPIN A7
+#define ZACCELPIN A8
+
+volatile bool launchDetect = false;
+int launchZAboveThresh = 0;
+
 
 //I2C variables
 enum i2cProt {
@@ -43,14 +49,18 @@ bool gpsFirstFix = true;
 
 
 void setup() {
+  int zAxis = 0;
+  int yAxis = 0;
+  int xAxis = 0;
+
   Wire.begin(I2CADDR); //Start in I2C Slave mode.
   Wire.onReceive(receiveI2C);
   Wire.onRequest(requestI2C);
 
   pinMode(BUZZPIN, OUTPUT);
-  xAxis = analogRead(A6);
-  yAxis = analogRead(A7);
-  zAxis = analogRead(A8);
+  xAxis = analogRead(XACCELPIN);
+  yAxis = analogRead(YACCELPIN);
+  zAxis = analogRead(ZACCELPIN);
   if (DEVMODE) {
     Serial.begin(9600);
     Serial.printf("Z: %i, Y: %i, X: %i\n", zAxis, yAxis, xAxis);
@@ -61,6 +71,18 @@ void setup() {
   delay(500);
   tone(BUZZPIN, zAxis, 200);
 }
+
+void updateLaunchDetect() {
+  int zAxis = 0;
+  zAxis = analogRead(ZACCELPIN);
+  if (DEVMODE) {
+    Serial.printf("Update zAxis: %i\n", zAxis);
+  }
+  if ((zAxis >= LAUNCHZTHRESH) && (++launchZAboveThresh >= LAUNCHCOUNTTHRESH)) {
+    launchDetect = true;
+  }
+}
+
 
 void gpsFixBeep() {
   gpsFirstFix = false;
@@ -141,9 +163,11 @@ out:
   return ret;
 }
 
+
 void loop() {
 
+  if (!launchDetect) updateLaunchDetect();
   if (i2cNewData) i2cProcessData();
 
-  delay(100);
+  delay(LOOPDELAY);
 }
