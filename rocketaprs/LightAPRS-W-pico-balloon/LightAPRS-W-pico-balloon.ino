@@ -38,6 +38,28 @@
 #define AprsPinOutput pinMode(12,OUTPUT);pinMode(13,OUTPUT);pinMode(14,OUTPUT);pinMode(15,OUTPUT)
 
 #define TEENCADDR 0x26
+
+//I2C variables
+enum i2cProt {
+  INVALID = 0,
+  GPS,
+  REQ
+};
+
+static char i2cProtText[3][4] = {
+  "INV",
+  "GPS",
+  "REQ"
+};
+
+enum i2cReq {
+  NOTREQ = 0,
+  TEST,     //1 byte reply - 0xF
+  XMIT_RDY  //1 byte reply - 0 = false, 1 = true
+};
+
+bool xmitReady = false;
+
 // Development mode. Uncomment to enable for debugging.
 #define DEVMODE
 
@@ -220,19 +242,89 @@ void setup() {
   APRS_setPathSize(pathSize);
   AprsPinInput;
   bmp.begin();
-
 }
 
 
-// TODO doc protocol
-void doTeenCComms() {
-  char msgTx[10], msgRx[10];
-  sprintf(msgTx, "GPS:%u", GpsFirstFix);//Gps Status
+void i2cBuildMessage(char *buf, enum i2cProt prot, int payload) {
+  sprintf(buf, "%s:%u", i2cProtText[prot], payload);
+}
+
+void i2cSendMessage(char *buf) {
+#if defined(DEVMODE)
+    Serial.print(__func__);
+    Serial.printf(": Sending I2C message: %s\n", buf);
+#endif
 
   Wire.beginTransmission(TEENCADDR);
-  Wire.write(msgTx);//Gps Status send
+  Wire.write(buf);
   Wire.endTransmission();
+}
 
+void i2cSendGPS(char *buf) {
+#if defined(DEVMODE)
+    Serial.print(__func__);
+    Serial.printf(": Sending GPS status: %i\n", (int)GpsFirstFix);
+#endif
+
+  i2cBuildMessage(buf, GPS, GpsFirstFix);
+  i2cSendMessage(buf);
+}
+
+unsigned char i2cReceiveUByte() {
+  unsigned char ret = 0xFF;
+  int count = 0;
+
+#if defined(DEVMODE)
+    Serial.print(__func__);
+    Serial.printf(": Requesting 1 byte from Teensy\n");
+#endif
+
+  Wire.requestFrom(TEENCADDR, 1);
+
+  while (Wire.available()) {
+    ret = Wire.read();
+    count++;
+  }
+
+#if defined(DEVMODE)
+    Serial.print(__func__);
+    Serial.printf(": Received %i bytes from Teensy, last: %u\n", count, ret);
+#endif
+
+
+  if (count != 1) {
+    ret = 0xFF;
+#if defined(DEVMODE)
+    Serial.print(__func__);
+    Serial.printf(": Incorrect count received: %i\n", count);
+#endif
+  }
+
+  return ret;
+}
+
+bool i2cGetXmitReady(char *buf) {
+#if defined(DEVMODE)
+    Serial.print(__func__);
+    Serial.printf(": Sending Xmit Ready request\n");
+#endif
+  i2cBuildMessage(buf, REQ, XMIT_RDY);
+  i2cSendMessage(buf);
+  delay(100);  //Give the Teensy time to process request
+  return (bool)i2cReceiveUByte();
+}
+
+// TODO doc protocol
+void doTeenCComms() {
+  char msgTx[33];
+
+  i2cSendGPS(&msgTx[0]);
+
+  xmitReady = i2cGetXmitReady(&msgTx[0]);
+#if defined(DEVMODE)
+    Serial.print(__func__);
+    Serial.printf(": Xmit ready: %i\n", (int)xmitReady);
+#endif
 }
 
 
