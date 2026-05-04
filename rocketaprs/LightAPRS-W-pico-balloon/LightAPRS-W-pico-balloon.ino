@@ -42,7 +42,7 @@
 #define DEVMODE
 
 // Set to 1 for APRS send, set to 0 for no callsign or antenna, good for board health.
-#define RFENABLE 0
+#define RFENABLE 1
 
 
 //******************************  APRS CONFIG **********************************
@@ -214,8 +214,9 @@ void setup() {
   APRS_setPath2("WIDE2", Wide2);
   APRS_useAlternateSymbolTable(alternateSymbolTable); 
   APRS_setSymbol(Symbol);
-  //increase following value (for example to 500UL) if you experience packet loss/decode issues.   
-  APRS_setPreamble(350UL);
+  //increase following value (for example to 500UL) if you experience packet loss/decode issues.  
+  //Defalt 350UL
+  APRS_setPreamble(500UL);
   APRS_setPathSize(pathSize);
   AprsPinInput;
   bmp.begin();
