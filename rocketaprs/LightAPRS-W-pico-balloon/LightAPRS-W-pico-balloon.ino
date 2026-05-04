@@ -58,7 +58,11 @@ enum i2cReq {
   XMIT_RDY  //1 byte reply - 0 = false, 1 = true
 };
 
+#define XMITREADYDELAY (unsigned long)15000UL //Delay for 15s after Xmit Ready (launch) to have first send near apogee
 bool xmitReady = false;
+bool xmitReadyStart = false;
+unsigned long xmitReadyStartms = 0UL;
+
 
 // Development mode. Uncomment to enable for debugging.
 #define DEVMODE
@@ -320,10 +324,18 @@ void doTeenCComms() {
 
   i2cSendGPS(&msgTx[0]);
 
-  xmitReady = i2cGetXmitReady(&msgTx[0]);
+  if (!xmitReadyStart) xmitReadyStart = i2cGetXmitReady(&msgTx[0]);
+
+  //We don't want to immediately start xmit after launch, wait for a period of time (15s)
+  if (!xmitReady && xmitReadyStart) {
+    if (xmitReadyStartms == 0) xmitReadyStartms = millis();
+    if (millis()-xmitReadyStartms >= XMITREADYDELAY) {
+      xmitReady = true;
+    }
+  }
 #if defined(DEVMODE)
     Serial.print(__func__);
-    Serial.printf(": Xmit ready: %i\n", (int)xmitReady);
+    Serial.printf(": Xmit ready: %i, Xmit ready start: %i\n", (int)xmitReady, (int)xmitReadyStart);
 #endif
 }
 
@@ -333,11 +345,12 @@ void doTeenCComms() {
 void loop() {
   wdt_reset();
   doTeenCComms();
+
   if (readBatt() > BattMin) {
-    if (aliveStatus) {
-	#if defined(DEVMODE)
-        Serial.println(F("Sending"));
-    #endif		
+    if (aliveStatus && xmitReady) {
+  #if defined(DEVMODE)
+      Serial.println(F("Sending"));
+    #endif
       sendStatus();
 #if defined(DEVMODE)
       Serial.println(F("Status sent"));
@@ -377,7 +390,7 @@ void loop() {
 #endif        
 
         // preparations for HF starts one minute before TX time at minute 3, 7, 13, 17, 23, 27, 33, 37, 43, 47, 53 or 57. No APRS TX during this period...
-        if (SENDWSPR && readBatt() > WsprBattMin && timeStatus() == timeSet && ((minute() % 10 == 3) || (minute() % 10 == 7)) ) {
+        if (SENDWSPR && xmitReady && readBatt() > WsprBattMin && timeStatus() == timeSet && ((minute() % 10 == 3) || (minute() % 10 == 7)) ) {
           GridLocator(hf_loc, gps.location.lat(), gps.location.lng());
           sprintf(hf_message,"%s %s",hf_call,hf_loc);
           
@@ -418,16 +431,19 @@ void loop() {
 
 
             //in some countries Airborne APRS is not allowed. (for pico balloon only)
-            if (isAirborneAPRSAllowed()) {
+            if (xmitReady && isAirborneAPRSAllowed()) {
               sendLocation();
             }
 
 
           freeMem();
           Serial.flush();
-          //If two minutes time slot is close, sleep less than default. 
-          if (timeStatus() == timeSet && ((minute() % 10 == 2) || (minute() % 10 == 6))){
-             sleepSeconds(60 - second());
+          //If we're not ready to xmit, don't sleep very long, so we re-check xmitReady quickly
+          //If two minutes time slot is close, sleep less than default.
+          if (!xmitReady) {
+            delay(50);
+          } else if (timeStatus() == timeSet && ((minute() % 10 == 2) || (minute() % 10 == 6))){
+            sleepSeconds(60 - second());
           } else {
              sleepSeconds(BeaconWait);
           }
