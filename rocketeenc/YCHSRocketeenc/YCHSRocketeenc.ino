@@ -75,11 +75,10 @@ void receiveI2C(int count) {
   int i = 0;
   while (Wire.available() && i < 32) {
     i2cData[i++] = Wire.read();
-    if (DEVMODE) Serial.printf("I2C receive %c\n", i2cData[i]);
   }
   i2cData[i] = '\0';
+  if (DEVMODE) Serial.printf("I2C receive %s\n", i2cData);
   i2cNewData = true;
-  if (DEVMODE) tone(BUZZPIN, 2048, 200);
 }
 
 void requestI2C() {
