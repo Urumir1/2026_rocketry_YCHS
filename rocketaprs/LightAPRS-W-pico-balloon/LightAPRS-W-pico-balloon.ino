@@ -38,6 +38,33 @@
 #define AprsPinOutput pinMode(12,OUTPUT);pinMode(13,OUTPUT);pinMode(14,OUTPUT);pinMode(15,OUTPUT)
 
 #define TEENCADDR 0x26
+
+//I2C variables
+enum i2cProt {
+  INVALID = 0,
+  GPS,
+  REQ
+};
+
+static char i2cProtText[3][4] = {
+  "INV",
+  "GPS",
+  "REQ"
+};
+
+enum i2cReq {
+  NOTREQ = 0,
+  TEST,     //1 byte reply - 0xF
+  XMIT_RDY  //1 byte reply - 0 = false, 1 = true
+};
+
+#define XMITREADYDELAY (unsigned long)15000UL //Delay for 15s after Xmit Ready (launch) to have first send near apogee
+bool xmitReady = false;
+bool xmitReadyStart = false;
+bool xmitReadyTest = false;
+unsigned long xmitReadyStartms = 0UL;
+
+
 // Development mode. Uncomment to enable for debugging.
 #define DEVMODE
 
@@ -220,19 +247,119 @@ void setup() {
   APRS_setPathSize(pathSize);
   AprsPinInput;
   bmp.begin();
-
 }
 
 
-// TODO doc protocol
-void doTeenCComms() {
-  char msgTx[10], msgRx[10];
-  sprintf(msgTx, "GPS:%u", GpsFirstFix);//Gps Status
+void i2cBuildMessage(char *buf, enum i2cProt prot, int payload) {
+  sprintf(buf, "%s:%u", i2cProtText[prot], payload);
+}
+
+void i2cSendMessage(char *buf) {
+#if defined(DEVMODE)
+    Serial.print(__func__);
+    Serial.printf(": Sending I2C message: %s\n", buf);
+#endif
 
   Wire.beginTransmission(TEENCADDR);
-  Wire.write(msgTx);//Gps Status send
+  Wire.write(buf);
   Wire.endTransmission();
+}
 
+void i2cSendGPS(char *buf) {
+#if defined(DEVMODE)
+    Serial.print(__func__);
+    Serial.printf(": Sending GPS status: %i\n", (int)GpsFirstFix);
+#endif
+
+  i2cBuildMessage(buf, GPS, GpsFirstFix);
+  i2cSendMessage(buf);
+}
+
+unsigned char i2cReceiveUByte() {
+  unsigned char ret = 0xFF;
+  int count = 0;
+
+#if defined(DEVMODE)
+    Serial.print(__func__);
+    Serial.printf(": Requesting 1 byte from Teensy\n");
+#endif
+
+  Wire.requestFrom(TEENCADDR, 1);
+
+  while (Wire.available()) {
+    ret = Wire.read();
+    count++;
+  }
+
+#if defined(DEVMODE)
+    Serial.print(__func__);
+    Serial.printf(": Received %i bytes from Teensy, last: %u\n", count, ret);
+#endif
+
+
+  if (count != 1) {
+    ret = 0xFF;
+#if defined(DEVMODE)
+    Serial.print(__func__);
+    Serial.printf(": Incorrect count received: %i\n", count);
+#endif
+  }
+
+  return ret;
+}
+
+bool i2cGetXmitReady(char *buf) {
+#if defined(DEVMODE)
+    Serial.print(__func__);
+    Serial.printf(": Sending Xmit Ready request\n");
+#endif
+  i2cBuildMessage(buf, REQ, XMIT_RDY);
+  i2cSendMessage(buf);
+  delay(100);  //Give the Teensy time to process request
+  return (bool)i2cReceiveUByte();
+}
+
+#ifdef DEVMODE
+unsigned char i2cGetTest(char *buf) {
+#if defined(DEVMODE)
+    Serial.print(__func__);
+    Serial.printf(": Sending Test request\n");
+#endif
+  i2cBuildMessage(buf, REQ, TEST);
+  i2cSendMessage(buf);
+  delay(100);
+  return (bool)i2cReceiveUByte();
+}
+#endif
+
+// TODO doc protocol
+void doTeenCComms() {
+  char msgTx[33];
+
+  i2cSendGPS(&msgTx[0]);
+
+  if (!xmitReadyStart) xmitReadyStart = i2cGetXmitReady(&msgTx[0]);
+#ifdef DEVMODE
+  if (xmitReady && !xmitReadyTest) {
+    xmitReadyTest = true; //Only once, when we have launch detected, GPS lock, and 15 second delay
+    unsigned char testResult = 0xFF;
+    i2cGetTest(&msgTx[0]);
+    Serial.print(__func__);
+    Serial.printf(": Received TEST response from Teensy: %02x\n", testResult);
+  }
+#endif
+
+  //We don't want to immediately start xmit after launch, wait for a period of time (15s)
+  if (!xmitReady && xmitReadyStart) {
+    if (xmitReadyStartms == 0) xmitReadyStartms = millis();
+    if (millis()-xmitReadyStartms >= XMITREADYDELAY) {
+      xmitReady = true;
+    }
+  }
+#if defined(DEVMODE)
+    Serial.print(__func__);
+    Serial.printf(": Xmit ready: %i, Xmit ready start: %i\n", (int)xmitReady, (int)xmitReadyStart);
+#endif
 }
 
 
@@ -241,11 +368,12 @@ void doTeenCComms() {
 void loop() {
   wdt_reset();
   doTeenCComms();
+
   if (readBatt() > BattMin) {
-    if (aliveStatus) {
-	#if defined(DEVMODE)
-        Serial.println(F("Sending"));
-    #endif		
+    if (aliveStatus && xmitReady) {
+  #if defined(DEVMODE)
+      Serial.println(F("Sending"));
+    #endif
       sendStatus();
 #if defined(DEVMODE)
       Serial.println(F("Status sent"));
@@ -285,7 +413,7 @@ void loop() {
 #endif        
 
         // preparations for HF starts one minute before TX time at minute 3, 7, 13, 17, 23, 27, 33, 37, 43, 47, 53 or 57. No APRS TX during this period...
-        if (SENDWSPR && readBatt() > WsprBattMin && timeStatus() == timeSet && ((minute() % 10 == 3) || (minute() % 10 == 7)) ) {
+        if (SENDWSPR && xmitReady && readBatt() > WsprBattMin && timeStatus() == timeSet && ((minute() % 10 == 3) || (minute() % 10 == 7)) ) {
           GridLocator(hf_loc, gps.location.lat(), gps.location.lng());
           sprintf(hf_message,"%s %s",hf_call,hf_loc);
           
@@ -326,16 +454,19 @@ void loop() {
 
 
             //in some countries Airborne APRS is not allowed. (for pico balloon only)
-            if (isAirborneAPRSAllowed()) {
+            if (xmitReady && isAirborneAPRSAllowed()) {
               sendLocation();
             }
 
 
           freeMem();
           Serial.flush();
-          //If two minutes time slot is close, sleep less than default. 
-          if (timeStatus() == timeSet && ((minute() % 10 == 2) || (minute() % 10 == 6))){
-             sleepSeconds(60 - second());
+          //If we're not ready to xmit, don't sleep very long, so we re-check xmitReady quickly
+          //If two minutes time slot is close, sleep less than default.
+          if (!xmitReady) {
+            delay(50);
+          } else if (timeStatus() == timeSet && ((minute() % 10 == 2) || (minute() % 10 == 6))){
+            sleepSeconds(60 - second());
           } else {
              sleepSeconds(BeaconWait);
           }
