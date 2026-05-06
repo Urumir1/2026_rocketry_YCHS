@@ -76,7 +76,7 @@ unsigned long xmitReadyStartms = 0UL;
 char    CallSign[7]="NOCALL"; //DO NOT FORGET TO CHANGE YOUR CALLSIGN
 int8_t  CallNumber=11; //SSID http://www.aprs.org/aprs11/SSIDs.txt
 char    Symbol='O'; // '/O' for balloon, '/>' for car, for more info : http://www.aprs.org/symbols/symbols-new.txt
-bool    alternateSymbolTable = false ; //false = '/' , true = '\'
+bool    alternateSymbolTable = true ; //false = '/' , true = '\'
 
 char    comment[50] = "http://www.lightaprs.com"; // Max 50 char
 char    StatusMessage[50] = "LightAPRS-W by TA2NHP & TA2MUN";
