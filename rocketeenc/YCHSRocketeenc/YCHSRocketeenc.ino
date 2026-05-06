@@ -79,13 +79,18 @@ void updateLaunchDetect() {
   if (DEVMODE) {
     Serial.printf("Update zAxis: %i\n", zAxis);
   }
-  if ((zAxis >= LAUNCHZTHRESH) && (++launchZAboveThresh >= LAUNCHCOUNTTHRESH)) {
-    launchDetect = true;
-    if (DEVMODE) {
-      Serial.printf("!!!LAUNCH DETECETED!!!\n");
-      tone(BUZZPIN, 200, 500);
+  if (zAxis >= LAUNCHZTHRESH) {
+    if (++launchZAboveThresh >= LAUNCHCOUNTTHRESH) {
+      launchDetect = true;
+      if (DEVMODE) {
+        Serial.printf("!!!LAUNCH DETECETED!!!\n");
+        tone(BUZZPIN, 200, 500);
+      }
     }
+  } else {
+    launchZAboveThresh = 0;
   }
+
 }
 
 
